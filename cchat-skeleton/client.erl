@@ -6,7 +6,8 @@
 -record(client_st, {
     gui, % atom of the GUI process
     nick, % nick/username of the client
-    server % atom of the chat server
+    server, % atom of the chat server
+    channelList
 }).
 
 % Return an initial state record. This is called from GUI.
@@ -15,7 +16,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     #client_st{
         gui = GUIAtom,
         nick = Nick,
-        server = ServerAtom
+        server = ServerAtom,
+        channelList = []
     }.
 
 % handle/2 handles each kind of request from GUI
@@ -28,27 +30,35 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 
 % Join channel
 handle(St=#client_st{server = Server, nick = Nick}, {join, Channel}) ->
-    try genserver:request(Server, {join, list_to_atom(Channel), self()}) of
-        joined -> {reply, ok , St};
-        notjoined -> {reply, {error, user_already_joined, "Uer have not joined"}, St}   
-catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
+    case lists:member (Server,registered()) of 
+        true -> 
+            try genserver:request(Server, {join, list_to_atom(Channel), self()}) of
+                joined -> 
+                    {reply, ok , St};
+                notjoined -> {reply, {error, user_already_joined, "User have not joined"}, St}   
+            catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
 end;
-   
+        false ->
+            {reply, {error, server_not_reached, "Server is not alive"}, St}
+end;
+    
     % TODO: Implement this function
     % {reply, {error, not_implemented, "join not implemented"}, St} ;
    
 % Leave channel
-handle(St, {leave, Channel}) ->
-    % TODO: Implement this function
-    {reply, ok, St} ;
-    % {reply, {error, not_implemented, "leave not implemented"}, St} ;
+handle(St=#client_st{server = Server, nick = Nick}, {leave, Channel}) ->
+    try genserver:request(list_to_atom(Channel), {leave, self()}) of
+        left ->  {reply, ok , St};
+        notleft -> {reply, {error, user_not_joined, "User have not joined"}, St}   
+catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
+end;
 
 % Sending message (from GUI, to channel)
 handle(St=#client_st{nick = Nick}, {message_send, Channel, Msg}) ->
     Result = genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}),
     case Result of
         message_receive -> {reply, ok, St} ; 
-        user_not_joined -> {error, user_not_joined,"ERROR: MESSAGE NOT SNT", St}
+        user_not_joined -> {reply, {error, user_not_joined,"ERROR: MESSAGE NOT SNT"}, St}
     end; 
     % TODO: Implement this function
     

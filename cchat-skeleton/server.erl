@@ -25,6 +25,7 @@ end;
 server_handler(Channels, {message_send, Channel, Msg, Client}) ->
     case lists:member(Channel,Channels) of
         true -> 
+            erlang:display("HEJ"),
             Result = genserver:request(Channel, {message_send, Msg, Client }),
         {reply, Result, Channels};
         false ->
@@ -37,6 +38,14 @@ channel_handler(ClientList, {join, Client}) ->
             {reply, notjoined, ClientList};
         false -> 
             {reply, joined, [Client | ClientList]}
+end;
+
+channel_handler(ClientList, {leave, Client}) ->
+    case lists:member(Client,ClientList) of 
+        true ->
+            {reply, left, [Klient || Klient <- ClientList, Klient /= Client]};
+        false -> 
+            {reply, notleft, ClientList}
 end;
 
 channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
