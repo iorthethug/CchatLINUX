@@ -29,37 +29,52 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 %   - NewState is the updated state of the client
 
 % Join channel
-handle(St=#client_st{server = Server, nick = Nick}, {join, Channel}) ->
-    case lists:member (Server,registered()) of 
+handle(St=#client_st{server = Server, nick = Nick, channelList = ChannelList}, {join, Channel}) ->
+    case lists:member(Server,registered()) of
         true -> 
             try genserver:request(Server, {join, list_to_atom(Channel), self()}) of
-                joined -> 
-                    {reply, ok , St};
-                notjoined -> {reply, {error, user_already_joined, "User have not joined"}, St}   
-            catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
+                joined -> {reply, ok , St};
+                notjoined -> {reply, {error, user_already_joined, "User have not joined"}, St}
+            catch _-> 
+                {reply, {error, server_not_reached, "Timeout"}, St}
+            end;
+        false -> 
+            {reply, {error, server_not_reached, "No Server Alive"}, St}
 end;
-        false ->
-            {reply, {error, server_not_reached, "Server is not alive"}, St}
-end;
-    
+   
     % TODO: Implement this function
     % {reply, {error, not_implemented, "join not implemented"}, St} ;
    
 % Leave channel
-handle(St=#client_st{server = Server, nick = Nick}, {leave, Channel}) ->
+handle(St=#client_st{server = Server, nick = Nick, channelList = ChannelList}, {leave, Channel}) ->
     try genserver:request(list_to_atom(Channel), {leave, self()}) of
-        left ->  {reply, ok , St};
+        left -> {reply, ok , St};
         notleft -> {reply, {error, user_not_joined, "User have not joined"}, St}   
 catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
 end;
+    % TODO: Implement this function
+    
+    % {reply, {error, not_implemented, "leave not implemented"}, St} ;
 
-% Sending message (from GUI, to channel)
-handle(St=#client_st{nick = Nick}, {message_send, Channel, Msg}) ->
-    Result = genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}),
-    case Result of
-        message_receive -> {reply, ok, St} ; 
-        user_not_joined -> {reply, {error, user_not_joined,"ERROR: MESSAGE NOT SNT"}, St}
-    end; 
+% SENDING MESSAGE (from GUI, to channel)
+handle(St=#client_st{server = Server, nick = Nick}, {message_send, Channel, Msg}) ->
+    case lists:member(Server,registered()) and lists:member(list_to_atom(Channel),registered()) of
+       true ->
+            try genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}) of
+                message_receive -> {reply, ok, St} ; 
+                user_not_joined -> {reply, {error, user_not_joined,"ERROR: MESSAGE NOT SNT"}, St}
+                catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
+            end; 
+        false -> {reply, {error, server_not_reached, "No Server Alive"}, St}%case lists:member(list_to_atom(Channel),registered()) of
+           % true -> 
+                %try genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}) of
+                %    message_receive -> {reply, ok, St} ; 
+                %    user_not_joined -> {reply, {error, user_not_joined,"ERROR: MESSAGE NOT SNT"}, St}
+                %   catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
+                %end;
+          %  false -> {reply, {error, server_not_reached, "No Server Alive"}, St}       
+    %end
+end;
     % TODO: Implement this function
     
     % {reply, {error, not_implemented, "message sending not implemented"}, St} ;
@@ -86,7 +101,6 @@ handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
 handle(St, quit) ->
     % Any cleanup should happen here, but this is optional
     {reply, ok, St} ;
-
 % Catch-all for any unhandled requests
 handle(St, Data) ->
-    {reply, {error, not_implemented, "Client does not handle this command"}, St} .
+    {reply, {error, not_implemented, "Client does not handle this command"}, St}.

@@ -3,7 +3,10 @@
 
 % Start a new server process with the given name
 % Do not change the signature of this function.
+
+
 start(ServerAtom) ->
+
     genserver:start(ServerAtom, [], fun server_handler/2).
 
     % TODO Implement function
@@ -17,9 +20,9 @@ server_handler(Channels, {join, Channel, Client}) ->
             Result = genserver:request(Channel, {join, Client}),
             {reply, Result, Channels};
         false -> 
-            PidC = genserver:start(Channel,[Client], fun channel_handler/2),
-            erlang:display(PidC),
+            genserver:start(Channel,[Client], fun channel_handler/2),     
             {reply, joined ,[Channel | Channels]}
+            
 end;
 
 server_handler(Channels, {message_send, Channel, Msg, Client}) ->
@@ -39,14 +42,6 @@ channel_handler(ClientList, {join, Client}) ->
             {reply, joined, [Client | ClientList]}
 end;
 
-channel_handler(ClientList, {leave, Client}) ->
-    case lists:member(Client,ClientList) of 
-        true ->
-            {reply, left, [Klient || Klient <- ClientList, Klient /= Client]};
-        false -> 
-            {reply, notleft, ClientList}
-end;
-
 channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
     case lists:member(Client,ClientList) of
         true -> 
@@ -54,12 +49,22 @@ channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
             {reply, message_receive, ClientList};
         false -> 
             {reply, user_not_joined, ClientList}
-    end.
+    end;
+
+channel_handler(ClientList, {leave, Client}) ->
+    case lists:member(Client,ClientList) of 
+        true ->
+            {reply, left, [Klient || Klient <- ClientList, Klient /= Client]};
+        false -> 
+            {reply, notleft, ClientList}
+end.
 
 
 % Stop the server process registered to the given name,
 % together with any other associated processes
 stop(ServerAtom) ->
+    (whereis(ServerAtom)),
     genserver:stop(ServerAtom).
+    
     % TODO Implement function
     % Return ok.
