@@ -25,7 +25,6 @@ end;
 server_handler(Channels, {message_send, Channel, Msg, Client}) ->
     case lists:member(Channel,Channels) of
         true -> 
-            erlang:display("HEJ"),
             Result = genserver:request(Channel, {message_send, Msg, Client }),
         {reply, Result, Channels};
         false ->
