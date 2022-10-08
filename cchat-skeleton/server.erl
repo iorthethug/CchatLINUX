@@ -1,8 +1,6 @@
 -module(server).
 -export([start/1,stop/1,channel_handler/2, server_handler/2]).
 
-% Start a new server process with the given name
-% Do not change the signature of this function.
 
 
 start(ServerAtom) ->
@@ -19,7 +17,7 @@ server_handler(Channels, {join, Channel, Client}) ->
         true -> 
             Result = genserver:request(Channel, {join, Client}),
             {reply, Result, Channels};
-        false -> 
+        false ->
             genserver:start(Channel,[Client], fun channel_handler/2),     
             {reply, joined ,[Channel | Channels]}
             
@@ -32,8 +30,12 @@ server_handler(Channels, {message_send, Channel, Msg, Client}) ->
         {reply, Result, Channels};
         false ->
             {reply, user_not_joined, Channels}
-end.
-    
+end;
+
+server_handler(Channels, {stop_channels}) ->
+    [genserver:stop(Channel) || Channel <- Channels],
+    {reply, stop_channels, Channels}.
+
 channel_handler(ClientList, {join, Client}) ->
     case lists:member(Client,ClientList) of 
         true -> % print meddelande
@@ -44,8 +46,7 @@ end;
 
 channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
     case lists:member(Client,ClientList) of
-        true -> 
-            [genserver:request(Klient, {message_receive,Channel, Nick, Msg})|| Klient <- ClientList, Klient /= Client ],
+        true -> [spawn( fun() -> genserver:request(Klient, {message_receive,Channel, Nick, Msg})end)|| Klient <- ClientList, Klient /= Client ],
             {reply, message_receive, ClientList};
         false -> 
             {reply, user_not_joined, ClientList}
@@ -63,7 +64,7 @@ end.
 % Stop the server process registered to the given name,
 % together with any other associated processes
 stop(ServerAtom) ->
-    (whereis(ServerAtom)),
+    genserver:request(ServerAtom, {stop_channels}),
     genserver:stop(ServerAtom).
     
     % TODO Implement function

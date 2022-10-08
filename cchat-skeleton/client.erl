@@ -58,14 +58,17 @@ end;
 
 % SENDING MESSAGE (from GUI, to channel)
 handle(St=#client_st{server = Server, nick = Nick}, {message_send, Channel, Msg}) ->
-    case lists:member(Server,registered()) and lists:member(list_to_atom(Channel),registered()) of
-       true ->
+
+    case lists:member(list_to_atom(Channel),registered()) of
+        true ->
             try genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}) of
-                message_receive -> {reply, ok, St} ; 
+                message_receive ->
+                    {reply, ok, St} ;
                 user_not_joined -> {reply, {error, user_not_joined,"ERROR: MESSAGE NOT SNT"}, St}
                 catch _-> {reply, {error, server_not_reached, "Timeout"}, St}
-            end; 
-        false -> {reply, {error, server_not_reached, "No Server Alive"}, St}%case lists:member(list_to_atom(Channel),registered()) of
+            end;
+        false -> {reply, {error, server_not_reached, "No Channel Alive"}, St}%case lists:member(list_to_atom(Channel),registered()) of
+                    
            % true -> 
                 %try genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}) of
                 %    message_receive -> {reply, ok, St} ; 
