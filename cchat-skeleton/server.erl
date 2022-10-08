@@ -4,46 +4,43 @@
 
 
 start(ServerAtom) ->
-
     genserver:start(ServerAtom, [], fun server_handler/2).
 
-    % TODO Implement function
-    % - Spawn a new process which waits for a message, handles it, then loops infinitely
-    % - Register this process to ServerAtom
-    % - Return the process ID
 
+% JOIN CHANNEL/START CHANNEL
 server_handler(Channels, {join, Channel, Client}) ->
     case lists:member(Channel,Channels) of
         true -> 
-            Result = genserver:request(Channel, {join, Client}),
+            Result = genserver:request(Channel, {join, Client}), %Joining an active Channel
             {reply, Result, Channels};
         false ->
-            genserver:start(Channel,[Client], fun channel_handler/2),     
+            genserver:start(Channel,[Client], fun channel_handler/2), %Start a new channel because it didn't exist
             {reply, joined ,[Channel | Channels]}
-            
 end;
 
+% SEND MESSAGE
 server_handler(Channels, {message_send, Channel, Msg, Client}) ->
     case lists:member(Channel,Channels) of
         true -> 
-            Result = genserver:request(Channel, {message_send, Msg, Client }),
+            Result = genserver:request(Channel, {message_send, Msg, Client }), % Try sending a message to the specific channel
         {reply, Result, Channels};
         false ->
             {reply, user_not_joined, Channels}
 end;
 
+% STOP CHANNELS
 server_handler(Channels, {stop_channels}) ->
     [genserver:stop(Channel) || Channel <- Channels],
     {reply, stop_channels, Channels}.
 
+% JOIN CHANNEL
 channel_handler(ClientList, {join, Client}) ->
-    case lists:member(Client,ClientList) of 
-        true -> % print meddelande
-            {reply, notjoined, ClientList};
-        false -> 
-            {reply, joined, [Client | ClientList]}
+    case lists:member(Client,ClientList) of % Checks if client already is in the channel
+        true -> {reply, notjoined, ClientList};
+        false -> {reply, joined, [Client | ClientList]}
 end;
 
+%SEND MESSAGE IN CHANNEL
 channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
     case lists:member(Client,ClientList) of
         true -> [spawn( fun() -> genserver:request(Klient, {message_receive,Channel, Nick, Msg})end)|| Klient <- ClientList, Klient /= Client ],
@@ -52,6 +49,7 @@ channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
             {reply, user_not_joined, ClientList}
     end;
 
+% LEAVE CHANNEL
 channel_handler(ClientList, {leave, Client}) ->
     case lists:member(Client,ClientList) of 
         true ->
@@ -61,11 +59,7 @@ channel_handler(ClientList, {leave, Client}) ->
 end.
 
 
-% Stop the server process registered to the given name,
-% together with any other associated processes
+% STOPS THE SERVER AND CHANNELS IN IT'S STATE
 stop(ServerAtom) ->
     genserver:request(ServerAtom, {stop_channels}),
     genserver:stop(ServerAtom).
-    
-    % TODO Implement function
-    % Return ok.
