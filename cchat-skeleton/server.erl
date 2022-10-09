@@ -18,6 +18,13 @@ server_handler(Channels, {join, Channel, Client, Nick}) ->
             {reply, joined ,[Channel | Channels]}
 end;
 
+server_handler(ChannelList, {change_nick, NewNick}) ->
+    Lista = [ genserver:request(Channel, {nick, NewNick}) ||Channel <- ChannelList],
+    case lists:member(nick_taken,Lista) of
+        true ->  {reply, nick_taken, ChannelList};
+        false -> {reply, nick_available, ChannelList}
+    end;    
+
 % SEND MESSAGE
 %server_handler(Channels, {message_send, Channel, Msg, Client}) ->
  %   case lists:member(Channel,Channels) of
@@ -53,7 +60,7 @@ channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
             {reply, user_not_joined, ClientList}
     end;
 
-channel_handler(ClientList,{nick, NewNick, Client, OldNick}) ->
+channel_handler(ClientList,{nick, NewNick}) ->
 
     case lists:keymember(NewNick,2,ClientList) of
         true -> 

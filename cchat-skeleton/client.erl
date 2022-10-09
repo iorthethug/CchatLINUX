@@ -62,20 +62,29 @@ end;
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
-handle(St=#client_st{channelList = ChannelList, nick = OldNick}, {nick, NewNick}) ->
+handle(St=#client_st{server = Server, channelList = ChannelList, nick = OldNick}, {nick, NewNick}) ->
     %erlang:display(ChannelList),
-    Lista = [genserver:request(list_to_atom(Channel), {nick, NewNick, self(), OldNick}) || Channel <- ChannelList],
+    Result = genserver:request(Server, {change_nick, NewNick}),
+    case Result of
+        nick_taken -> erlang:display("nick taken"),
+            {reply, {error, nick_taken, "NICK TAKEN" }, St};
+
+        nick_available -> [genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick}) || Channel <- ChannelList],
+        {reply, ok, St#client_st{nick = NewNick}}
+            
+    end;
+    %Lista = [genserver:request(list_to_atom(Channel), {nick, NewNick}) || Channel <- ChannelList],
 
     %Available_listan = [Channel || {Channel,nick_available} <- Lista],
 
     %FinalLista = [{Channel,genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick})} || Channel <- Available_listan],
-    erlang:display(Lista),
-    case lists:member(nick_taken,Lista) of
-        true ->  {reply, {error, nick_taken,"NICK TAKEN"}, St};
-        false -> 
-            [genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick}) || Channel <- ChannelList],
-            {reply, ok, St#client_st{nick = NewNick}}
-end;
+    %erlang:display(Lista),
+    %case lists:member(nick_taken,Lista) of
+    %    true ->  {reply, {error, nick_taken,"NICK TAKEN"}, St};
+    %    false -> 
+    %        [genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick}) || Channel <- ChannelList],
+    %        {reply, ok, St#client_st{nick = NewNick}}
+%end;
 
 handle(St=#client_st{channelList = ChannelList}, {add_channel, Channel}) ->
     NewChannelList = [Channel | ChannelList],
