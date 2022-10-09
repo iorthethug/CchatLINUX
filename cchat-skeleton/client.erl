@@ -6,7 +6,8 @@
 -record(client_st, {
     gui, % atom of the GUI process
     nick, % nick/username of the client
-    server % atom of the chat server
+    server, % atom of the chat server
+    channelList
 }).
 
 % Return an initial state record. This is called from GUI.
@@ -15,15 +16,18 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     #client_st{
         gui = GUIAtom,
         nick = Nick,
-        server = ServerAtom
+        server = ServerAtom,
+        channelList = []
     }.
 
 % JOIN CHANNEL
-handle(St=#client_st{server = Server}, {join, Channel}) ->
+handle(St=#client_st{server = Server, nick = Nick}, {join, Channel}) ->
     case lists:member(Server,registered()) of
         true -> 
-            try genserver:request(Server, {join, list_to_atom(Channel), self()}) of
-                joined -> {reply, ok , St};
+            try genserver:request(Server, {join, list_to_atom(Channel), self(), Nick}) of
+                joined -> 
+                    Newstate = handle(St, {add_channel, Channel}),
+                    {reply, ok , Newstate};
                 notjoined -> {reply, {error, user_already_joined, "USER IS ALREADY IN THE CHANNEL"}, St}
             catch _-> 
                 {reply, {error, server_not_reached, "TIMEOUT SERVER NOT REACHED"}, St}
@@ -31,11 +35,15 @@ handle(St=#client_st{server = Server}, {join, Channel}) ->
         false -> 
             {reply, {error, server_not_reached, "THE SERVER IS NOT RUNNING"}, St}
 end;
+
+
    
 % LEAVE CHANNEL
-handle(St, {leave, Channel}) ->
-    try genserver:request(list_to_atom(Channel), {leave, self()}) of
-        left -> {reply, ok , St};
+handle(St=#client_st{nick = Nick}, {leave, Channel}) ->
+    try genserver:request(list_to_atom(Channel), {leave, self(), Nick}) of
+        left -> 
+            NewState = handle(St, {delete_channel, Channel}),
+            {reply, ok , NewState};
         notleft -> {reply, {error, user_not_joined, "USER WAS NOT IN THE CHANNEL"}, St}   
 catch _-> {reply, {error, server_not_reached, "TIMEOUT SERVER NOT REACHED"}, St}
 end;
@@ -44,7 +52,7 @@ end;
 handle(St=#client_st{nick = Nick}, {message_send, Channel, Msg}) ->
     case lists:member(list_to_atom(Channel),registered()) of
         true ->
-            try genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}) of %Try to write a message to the specified channel
+            try genserver:request(list_to_atom(Channel),{message_send, Nick, Msg, self(), Channel}) of %Requests to write a message to the specified channel
                 message_receive -> {reply, ok, St} ;
                 user_not_joined -> {reply, {error, user_not_joined,"ERROR: CLIENT NOT IN CHANNEL"}, St}
                 catch _-> {reply, {error, server_not_reached, "TIMEOUT SERVER NOT REACHED"}, St}
@@ -54,8 +62,30 @@ end;
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
-handle(St, {nick, NewNick}) ->
-    {reply, ok, St#client_st{nick = NewNick}} ;
+handle(St=#client_st{channelList = ChannelList, nick = OldNick}, {nick, NewNick}) ->
+    %erlang:display(ChannelList),
+    Lista = [{Channel,genserver:request(list_to_atom(Channel), {nick, NewNick, self(), OldNick})} || Channel <- ChannelList],
+
+    %Available_listan = [Channel || {Channel,nick_available} <- Lista],
+
+    %FinalLista = [{Channel,genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick})} || Channel <- Available_listan],
+
+    case lists:member(nick_taken,Lista) of
+        true ->  {reply, {error, nick_taken,"NICK TAKEN"}, St};
+        false -> 
+            [{Channel,genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick})} || Channel <- ChannelList],
+            {reply, ok, St#client_st{nick = NewNick}}
+end;
+
+handle(St=#client_st{channelList = ChannelList}, {add_channel, Channel}) ->
+    NewChannelList = [Channel | ChannelList],
+    %{reply, ok, St#client_st{channelList = NewChannelList}};
+    St#client_st{channelList = NewChannelList};
+
+handle(St=#client_st{channelList = ChannelList}, {delete_channel, Channel}) ->
+    %{reply, ok, St#client_st{channelList = lists:delete(Channel, ChannelList)}};
+    NewChannelList = lists:delete(Channel, ChannelList),
+    St#client_st{channelList = NewChannelList};
 
 % ---------------------------------------------------------------------------
 % The cases below do not need to be changed...
