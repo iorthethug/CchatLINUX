@@ -56,7 +56,8 @@ channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
 channel_handler(ClientList,{nick, NewNick, Client, OldNick}) ->
 
     case lists:keymember(NewNick,2,ClientList) of
-        true -> {reply, nick_taken, ClientList};
+        true -> 
+            {reply, nick_taken, ClientList};
         false -> 
             {reply, nick_available, ClientList}
     end;

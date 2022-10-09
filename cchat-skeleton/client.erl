@@ -64,16 +64,16 @@ end;
 % Change nick (no check, local only)
 handle(St=#client_st{channelList = ChannelList, nick = OldNick}, {nick, NewNick}) ->
     %erlang:display(ChannelList),
-    Lista = [{Channel,genserver:request(list_to_atom(Channel), {nick, NewNick, self(), OldNick})} || Channel <- ChannelList],
+    Lista = [genserver:request(list_to_atom(Channel), {nick, NewNick, self(), OldNick}) || Channel <- ChannelList],
 
     %Available_listan = [Channel || {Channel,nick_available} <- Lista],
 
     %FinalLista = [{Channel,genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick})} || Channel <- Available_listan],
-
+    erlang:display(Lista),
     case lists:member(nick_taken,Lista) of
         true ->  {reply, {error, nick_taken,"NICK TAKEN"}, St};
         false -> 
-            [{Channel,genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick})} || Channel <- ChannelList],
+            [genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick}) || Channel <- ChannelList],
             {reply, ok, St#client_st{nick = NewNick}}
 end;
 
