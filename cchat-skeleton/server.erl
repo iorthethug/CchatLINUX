@@ -18,16 +18,6 @@ server_handler(Channels, {join, Channel, Client, Nick}) ->
             {reply, joined ,[Channel | Channels]}
 end;
 
-% SEND MESSAGE
-%server_handler(Channels, {message_send, Channel, Msg, Client}) ->
- %   case lists:member(Channel,Channels) of
- %       true -> 
- %           Result = genserver:request(Channel, {message_send, Msg, Client }), % Try sending a message to the specific channel
- %       {reply, Result, Channels};
-  %      false ->
- %           {reply, user_not_joined, Channels}
-%end;
-
 % STOP CHANNELS
 server_handler(Channels, {stop_channels}) ->
     [genserver:stop(Channel) || Channel <- Channels],
@@ -42,26 +32,21 @@ end;
 
 %SEND MESSAGE IN CHANNEL
 channel_handler(ClientList, {message_send, Nick, Msg, Client, Channel}) ->
-    erlang:display(ClientList),
-    erlang:display({Client,Nick}),
     case lists:member({Client,Nick},ClientList) of
         true -> 
-            erlang:display(ClientList),
             [spawn( fun() -> genserver:request(Klient, {message_receive,Channel, Nick, Msg})end)|| {Klient,_} <- ClientList, Klient /= Client ],
             {reply, message_receive, ClientList};
-        false -> 
-            {reply, user_not_joined, ClientList}
+        false -> {reply, user_not_joined, ClientList}
     end;
 
-channel_handler(ClientList,{nick, NewNick, Client, OldNick}) ->
-
+% CHECK IF NEWNICK IS AVAILABLE
+channel_handler(ClientList,{nick, NewNick}) ->
     case lists:keymember(NewNick,2,ClientList) of
-        true -> 
-            {reply, nick_taken, ClientList};
-        false -> 
-            {reply, nick_available, ClientList}
+        true ->  {reply, nick_taken, ClientList};
+        false -> {reply, nick_available, ClientList}
     end;
 
+% DELETE AND REPLACE OLDNICK IN CHANNEL STATE
 channel_handler(ClientList, {nick_change, NewNick, Client, OldNick}) ->
             NewClientList = lists:delete({Client,OldNick},ClientList),
             NewNewClientList = [{Client,NewNick} | NewClientList],

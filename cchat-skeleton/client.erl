@@ -28,7 +28,8 @@ handle(St=#client_st{server = Server, nick = Nick}, {join, Channel}) ->
                 joined -> 
                     Newstate = handle(St, {add_channel, Channel}),
                     {reply, ok , Newstate};
-                notjoined -> {reply, {error, user_already_joined, "USER IS ALREADY IN THE CHANNEL"}, St}
+                notjoined -> 
+                    {reply, {error, user_already_joined, "USER IS ALREADY IN THE CHANNEL"}, St}
             catch _-> 
                 {reply, {error, server_not_reached, "TIMEOUT SERVER NOT REACHED"}, St}
             end;
@@ -63,27 +64,24 @@ end;
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St=#client_st{channelList = ChannelList, nick = OldNick}, {nick, NewNick}) ->
-    %erlang:display(ChannelList),
-    Lista = [genserver:request(list_to_atom(Channel), {nick, NewNick, self(), OldNick}) || Channel <- ChannelList],
 
-    %Available_listan = [Channel || {Channel,nick_available} <- Lista],
+    Lista = [genserver:request(list_to_atom(Channel), {nick, NewNick}) || Channel <- ChannelList],
 
-    %FinalLista = [{Channel,genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick})} || Channel <- Available_listan],
-    erlang:display(Lista),
     case lists:member(nick_taken,Lista) of
-        true ->  {reply, {error, nick_taken,"NICK TAKEN"}, St};
+        true ->  
+            {reply, {error, nick_taken,"NICK TAKEN"}, St};
         false -> 
             [genserver:request(list_to_atom(Channel), {nick_change, NewNick, self(), OldNick}) || Channel <- ChannelList],
             {reply, ok, St#client_st{nick = NewNick}}
 end;
 
+% HELPER TO ADD CHANNELS TO CHANNELLIST
 handle(St=#client_st{channelList = ChannelList}, {add_channel, Channel}) ->
     NewChannelList = [Channel | ChannelList],
-    %{reply, ok, St#client_st{channelList = NewChannelList}};
     St#client_st{channelList = NewChannelList};
 
+%HELPER TO REMOVE CHANNELS FROM CHANNELLIST
 handle(St=#client_st{channelList = ChannelList}, {delete_channel, Channel}) ->
-    %{reply, ok, St#client_st{channelList = lists:delete(Channel, ChannelList)}};
     NewChannelList = lists:delete(Channel, ChannelList),
     St#client_st{channelList = NewChannelList};
 
