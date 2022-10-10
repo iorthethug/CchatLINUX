@@ -29,7 +29,9 @@ handle(St=#client_st{server = Server, nick = Nick}, {join, Channel}) ->
                     Newstate = handle(St, {add_channel, Channel}),
                     {reply, ok , Newstate};
                 notjoined -> 
-                    {reply, {error, user_already_joined, "USER IS ALREADY IN THE CHANNEL"}, St}
+                    {reply, {error, user_already_joined, "USER IS ALREADY IN THE CHANNEL"}, St};
+                nick_taken -> 
+                    {reply, {error, user_already_joined, "NICK IS ALREADY IN THE CHANNEL, CHANGE NICK"}, St}
             catch _-> 
                 {reply, {error, server_not_reached, "TIMEOUT SERVER NOT REACHED"}, St}
             end;

@@ -11,8 +11,15 @@ start(ServerAtom) ->
 server_handler(Channels, {join, Channel, Client, Nick}) ->
     case lists:member(Channel,Channels) of
         true -> 
-            Result = genserver:request(Channel, {join, Client, Nick}), %Joining an active Channel
-            {reply, Result, Channels};
+            case genserver:request(Channel, {nick, Nick}) of 
+                
+            nick_taken -> {reply,nick_taken, Channels};
+
+            nick_available -> Result = genserver:request(Channel, {join, Client, Nick}), %Joining an active Channel
+                        {reply, Result, Channels}
+
+end;
+            
         false ->
             genserver:start(Channel,[{Client,Nick}], fun channel_handler/2), %Start a new channel because it didn't exist
             {reply, joined ,[Channel | Channels]}
